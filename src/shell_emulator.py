@@ -15,7 +15,9 @@ from src.commands import (
     command_cd,
     command_echo,
     command_ls,
+    command_rm,
     command_tree,
+    command_vfs_load,
 )
 from src.vfs import VfsLoadError, describe_vfs, load_vfs
 
@@ -45,7 +47,10 @@ def parse_command(line: str) -> list[str]:
     """Раскрыть переменные окружения и разобрать оболочечные кавычки."""
     expanded_line = os.path.expandvars(line)
     try:
-        return shlex.split(expanded_line, posix=True)
+        lexer = shlex.shlex(expanded_line, posix=True)
+        lexer.whitespace_split = True
+        lexer.escape = ""
+        return list(lexer)
     except ValueError as error:
         raise ParseError(str(error)) from error
 
@@ -67,6 +72,10 @@ def dispatch_command(
             command_echo(command_arguments, output)
         elif name == "tree":
             command_tree(state, command_arguments, output)
+        elif name == "rm":
+            command_rm(state, command_arguments)
+        elif name == "vfs-load":
+            command_vfs_load(state, command_arguments, output)
         elif name == "exit":
             return CommandStatus.EXIT
         else:
