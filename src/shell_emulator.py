@@ -9,6 +9,8 @@ import sys
 from enum import Enum, auto
 from typing import TextIO
 
+from src.vfs import VfsLoadError, describe_vfs, load_vfs
+
 PROMPT_ENDING = "$ "
 
 
@@ -149,10 +151,20 @@ def print_configuration(arguments: argparse.Namespace) -> None:
 
 
 def main(argv: list[str] | None = None) -> None:
-    """Показать настройки, выполнить стартовый скрипт и запустить REPL."""
+    """Показать настройки, загрузить VFS, выполнить скрипт и запустить REPL."""
     parser = create_argument_parser()
     arguments = parser.parse_args(argv)
     print_configuration(arguments)
+    filesystem = None
+    if arguments.vfs:
+        try:
+            filesystem = load_vfs(arguments.vfs)
+        except VfsLoadError as error:
+            print(f"Ошибка загрузки VFS: {error}")
+        else:
+            print(describe_vfs(filesystem))
+    else:
+        print("VFS не задана.")
 
     startup_path = arguments.script or os.environ.pop(
         "SHELL_EMULATOR_STARTUP", None
