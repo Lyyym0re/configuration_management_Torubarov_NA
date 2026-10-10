@@ -55,30 +55,57 @@ def dispatch_command(
 def repl(
     input_stream: TextIO = sys.stdin,
     output_stream: TextIO = sys.stdout,
+    startup_stream: TextIO | None = None,
 ) -> None:
-    """Обрабатывать команды до exit или конца входного потока."""
-    while True:
-        print(format_prompt(), end="", file=output_stream, flush=True)
-        try:
-            line = input_stream.readline()
-        except (EOFError, KeyboardInterrupt):
-            print(file=output_stream)
-            break
-        if line == "":
-            break
+    """Сначала выполнить демонстрационные команды, затем читать ввод."""
+    streams = []
+    if startup_stream is not None:
+        streams.append((startup_stream, False))
+    is_interactive = getattr(input_stream, "isatty", lambda: True)()
+    streams.append((input_stream, is_interactive))
 
-        try:
-            arguments = parse_command(line)
-        except ParseError as error:
-            print(f"Ошибка разбора команды: {error}", file=output_stream)
-            continue
-        if not dispatch_command(arguments, output_stream):
-            break
+    try:
+        for stream, show_prompt_first in streams:
+            while True:
+                if show_prompt_first:
+                    print(
+                        format_prompt(),
+                        end="",
+                        file=output_stream,
+                        flush=True,
+                    )
+                line = stream.readline()
+                if line == "":
+                    break
+                if not show_prompt_first:
+                    print(format_prompt(), end="", file=output_stream)
+                    print(line, end="", file=output_stream)
+
+                try:
+                    arguments = parse_command(line)
+                except ParseError as error:
+                    message = f"Ошибка разбора команды: {error}"
+                    print(message, file=output_stream)
+                    continue
+                if not dispatch_command(arguments, output_stream):
+                    return
+    except (EOFError, KeyboardInterrupt):
+        print(file=output_stream)
 
 
 def main() -> None:
     """Запустить интерактивный цикл команд."""
-    repl()
+    startup_path = os.environ.pop("SHELL_EMULATOR_STARTUP", None)
+    if startup_path is None:
+        repl()
+        return
+
+    try:
+        with open(startup_path, encoding="utf-8") as startup_stream:
+            repl(startup_stream=startup_stream)
+    except OSError as error:
+        print(f"Не удалось прочитать демонстрационные команды: {error}")
+        repl()
 
 
 if __name__ == "__main__":
